@@ -379,15 +379,15 @@ class wumpus:
         else:
             print("El juego ha terminado.")
 
-def percibir(mundo):
+    def percibir(self):
 
-    # Lista de sensores [hedor, brisa, brillo, batacazo, grito]
-    hedor = 'hedor' if mundo.heroe in mundo.hedor else None
-    brisa = 'brisa' if mundo.heroe in mundo.brisa else None
-    brillo = 'brillo' if ((mundo.heroe == mundo.oro) and not mundo.oro_tomado) else None
-    batacazo = 'batacazo' if mundo.bump else None
-    grito = 'grito' if mundo.grito else None
-    return [hedor, brisa, brillo, batacazo, grito]
+        # Lista de sensores [hedor, brisa, brillo, batacazo, grito]
+        hedor = 'hedor' if self.heroe in self.hedor else None
+        brisa = 'brisa' if self.heroe in self.brisa else None
+        brillo = 'brillo' if ((self.heroe == self.oro) and not self.oro_tomado) else None
+        batacazo = 'batacazo' if self.bump else None
+        grito = 'grito' if self.grito else None
+        return [hedor, brisa, brillo, batacazo, grito]
 
 def f(n, indice):
     # Distancia Manhattan
@@ -607,25 +607,32 @@ def formulas_hedor(cods, n=4):
     for x in range(n):
         for y in range(n):
             # Para las implicaciones positivas
-            for p in adyacentes((x,y)):
+            aux1 = [p for p in adyacentes((x,y))]
+            for p in aux1:
                 i, j = p
                 # Para las implicaciones negativas
                 formulas_hedor.append("-" + cods.P(i, j, 3) + ">-" + cods.P(x, y, 4))
-            # Como solo hay un Wumpus, dos hedores localizan al Wumpus
-            aux1 = [p for p in adyacentes((x,y))]
-            if len(aux1) == 2:
-                p = aux1[0]
-                q = aux1[1]
-                formulas_hedor.append(cods.P(*p, 3) + "Y" + cods.P(*q, 3) + ">" + cods.P(x, y, 4))
-            else:
-                for i in range(len(aux1)):
-                    for j in range(i + 1, len(aux1)):
-                        a1, b1 = aux1[i]
-                        a2, b2 = aux1[j]
-                        formulas_hedor.append(cods.P(a1, b1, 3) + "Y" + cods.P(a2, b2, 3) + ">" + cods.P(x, y, 4))
-            # FALTA INCLUIR LAS FORMULAS PARA EL RAZONAMIENTO
-            # QUE SE REALIZA EN EL EJERCICIO 7 DEL PRIMER NOTEBOOK
-            # Wumpus localizado implica que no está en las demás
+            # Como solo hay un Wumpus, tres hedores localizan al Wumpus
+            if len(aux1) >= 3:
+                if len(aux1) == 3:
+                    aux2 = [p for p in aux1]
+                    p = aux2[0]
+                    q = aux2[1]
+                    r = aux2[2]
+                    # Tres hedores localizan el wumpus
+                    formulas_hedor.append(cods.P(*p, 3) + "Y" + cods.P(*q, 3) + "Y" + cods.P(*r, 3) + ">" + cods.P(x, y, 4))
+                    # Dos no Wumpus y un hedor localizan al wumpus
+                    formulas_hedor.append(cods.P(x, y, 3) + "Y-" + cods.P(*p, 4) + "Y-" + cods.P(*q, 4) + ">" + cods.P(*r, 4))
+                    formulas_hedor.append(cods.P(x, y, 3) + "Y-" + cods.P(*q, 4) + "Y-" + cods.P(*r, 4) + ">" + cods.P(*p, 4))
+                    formulas_hedor.append(cods.P(x, y, 3) + "Y-" + cods.P(*r, 4) + "Y-" + cods.P(*p, 4) + ">" + cods.P(*q, 4))
+                elif len(aux1) == 4:
+                    for c in aux1:
+                        aux2 = [p for p in aux1 if p != c]
+                        p = aux2[0]
+                        q = aux2[1]
+                        r = aux2[2]
+                        formulas_hedor.append(cods.P(*p, 3) + "Y" + cods.P(*q, 3) + "Y" + cods.P(*r, 3) + ">" + cods.P(x, y, 4))
+            # Wumpus localizado implica que no está en las demás casillas
             casillas = [(x1, y1) for x1 in range(4) for y1 in range(4) if x1!=x and y1!=y]
             for casilla in casillas:
                 x1, y1 = casilla
@@ -706,52 +713,74 @@ class lp_query:
         literales = self.base_conocimiento['datos']
         return True if literal in literales else False
 
-def TELL(base, formula):
-    indice_conectivo = formula.find('>')
-    if indice_conectivo > 0:
-        cuerpo = formula[:indice_conectivo]
-        cabeza = formula[indice_conectivo + 1:]
-        try:
-            if cuerpo not in base.base_conocimiento['reglas'][cabeza]:
-                base.base_conocimiento['reglas'][cabeza].append(cuerpo)
-        except:
-            base.base_conocimiento['reglas'][cabeza] = [cuerpo]
-    else:
-        lista_hechos = formula.split('Y')
-        for literal in lista_hechos:
+    def TELL(self, formula):
+        indice_conectivo = formula.find('>')
+        if indice_conectivo > 0:
+            cuerpo = formula[:indice_conectivo]
+            cabeza = formula[indice_conectivo + 1:]
             try:
-                if literal not in base.base_conocimiento['datos']:
-                    base.base_conocimiento['datos'].append(literal)
+                if cuerpo not in self.base_conocimiento['reglas'][cabeza]:
+                    self.base_conocimiento['reglas'][cabeza].append(cuerpo)
             except:
-                base.base_conocimiento['datos'] = [literal]
+                self.base_conocimiento['reglas'][cabeza] = [cuerpo]
+        else:
+            lista_hechos = formula.split('Y')
+            for literal in lista_hechos:
+                try:
+                    if literal not in self.base_conocimiento['datos']:
+                        self.base_conocimiento['datos'].append(literal)
+                except:
+                    self.base_conocimiento['datos'] = [literal]
 
-def ASK(objetivo, valor:bool, base):
-    ask = True if (and_or_graph_search(objetivo, base) != 'failure') else False
-    return (ask == valor)
+    def ASK(self, objetivo, valor:bool):
+        ask = True if (self.and_or_graph_search(objetivo) != 'failure') else False
+        return (ask == valor)
 
-def and_or_graph_search(objetivo, base):
-    return or_search(objetivo, base, [])
+    def and_or_graph_search(self, objetivo):
+        return self.or_search(objetivo, [])
 
-def or_search(head, base, camino):
-    if base.test_objetivo(head):
-        return 'success'
-    elif head in camino:
-        return 'failure'
-    reglas = base.reglas_aplicables(head)
-    if not reglas:
-        return 'failure'
-    for regla in reglas:
-        plan = and_search(base.transicion(head, regla), base, [head] + camino)
-        if plan != 'failure':
+    def or_search(self, head, camino):
+        if self.test_objetivo(head):
             return 'success'
-    return 'failure'
-
-def and_search(literales, base, camino):
-    for literal in literales:
-        plan = or_search(literal, base, camino)
-        if plan == 'failure':
+        elif head in camino:
             return 'failure'
-    return 'success'
+        reglas = self.reglas_aplicables(head)
+        if not reglas:
+            return 'failure'
+        for regla in reglas:
+            plan = self.and_search(self.transicion(head, regla), [head] + camino)
+            if plan != 'failure':
+                return 'success'
+        return 'failure'
+
+    def and_search(self, literales, camino):
+        for literal in literales:
+            plan = self.or_search(literal, camino)
+            if plan == 'failure':
+                return 'failure'
+        return 'success'
+
+    def casillas_seguras(self):
+        # Extrae los literales Seguras de la base de datos
+        seguras = []
+        for literal in self.base_conocimiento['datos']:
+            if len(literal) == 1:
+                if ord(literal) < 9999:
+                    x, y, z = self.cods.Pinv(literal)
+                    if z == 0:
+                        seguras.append((x,y))
+        return seguras
+
+    def casillas_visitadas(self):
+        # Extrae los literales Visitadas de la base de datos
+        visitadas = []
+        for literal in self.base_conocimiento['datos']:
+            if len(literal) == 1:
+                if ord(literal) < 9999:
+                    x, y, z = self.cods.Pinv(literal)
+                    if z == 5:
+                        visitadas.append((x,y))
+        return visitadas
 
 class nodo:
 
@@ -798,30 +827,10 @@ def solucion(n):
 
     return acciones
 
-def casillas_seguras(base, cods):
-    # Extrae los literales Seguras de la base de datos
-    seguras = []
-    for literal in base.base_conocimiento['datos']:
-        if len(literal) == 1:
-            if ord(literal) < 9999:
-                x, y, z = cods.Pinv(literal)
-                if z == 0:
-                    seguras.append((x,y))
-    return seguras
+def hybrid_wumpus_agent(percept, turno, locacion, direccion, Base_wumpus, plan):
 
-def casillas_visitadas(base, cods):
-    # Extrae los literales Visitadas de la base de datos
-    visitadas = []
-    for literal in base.base_conocimiento['datos']:
-        if len(literal) == 1:
-            if ord(literal) < 9999:
-                x, y, z = cods.Pinv(literal)
-                if z == 5:
-                    visitadas.append((x,y))
-    return visitadas
-
-def hybrid_wumpus_agent(percept, turno, locacion, direccion, Base_wumpus, cods, plan):
-
+    # Renombra el objeto de codificación
+    cods = Base_wumpus.cods
     # Incluye los axiomas de los fluentes para el turno respectivo
     # Brillo
     fml_lista = [cods.F(turno, 0) + "Y-" + cods.F(turno, 1) + ">" + cods.F(turno + 1, 0)]
@@ -832,34 +841,34 @@ def hybrid_wumpus_agent(percept, turno, locacion, direccion, Base_wumpus, cods, 
     fml_lista.append("-" + cods.F(turno, 2) + ">-" + cods.F(turno + 1, 2))
     fml_lista.append(cods.F(turno, 3) + ">-" + cods.F(turno + 1, 2))
     for fml in fml_lista:
-        TELL(Base_wumpus, fml)
+        Base_wumpus.TELL(fml)
 
     # Incluye la información de los sensores en la base de datos
     datos = make_percept_sentence(percept, locacion, turno, cods)
-    TELL(Base_wumpus, datos)
+    Base_wumpus.TELL(datos)
     # Razona para determinar cuáles casillas son seguras
     for casilla in [locacion] + adyacentes(locacion):
         x, y = casilla
         objetivo = cods.P(x, y, 0)
-        if ASK(objetivo, True, Base_wumpus):
-            TELL(Base_wumpus, cods.P(x, y, 0))
+        if Base_wumpus.ASK(objetivo, True):
+            Base_wumpus.TELL(cods.P(x, y, 0))
 
     # Incluye la información de que la casilla actual es visitada
     x, y = locacion
-    TELL(Base_wumpus, cods.P(x, y, 5))
+    Base_wumpus.TELL(cods.P(x, y, 5))
 
     # Obtiene las casillas seguras de la base de datos
-    seguras = casillas_seguras(Base_wumpus, cods)
+    seguras = Base_wumpus.casillas_seguras()
     #print('seguras', seguras)
     # Obtiene las casillas visitadas de la base de datos
-    visitadas = casillas_visitadas(Base_wumpus, cods)
+    visitadas = Base_wumpus.casillas_visitadas()
     #print('visitadas', visitadas)
     # Calcula las casillas seguras no visitadas
     seguras_no_visitadas = [casilla for casilla in seguras if casilla not in visitadas]
     #print('seguras no visitadas', seguras_no_visitadas)
 
     # Si percibe un brillo, toma el oro y planea su regreso a la salida
-    if ASK(cods.F(turno, 0), True, Base_wumpus):
+    if Base_wumpus.ASK(cods.F(turno, 0), True):
         #print("Aquí está el oro!")
         plan = ['agarrar']
         R = planeadorRuta(locacion, (0,0) , seguras)
@@ -899,9 +908,10 @@ def hybrid_wumpus_agent(percept, turno, locacion, direccion, Base_wumpus, cods, 
     # Decide la acción y actualiza la base de conocimiento
     accion = plan.pop(0)
     fml = make_action_sentence(accion, turno, cods)
-    TELL(Base_wumpus, fml)
+    Base_wumpus.TELL(fml)
     return accion
 
+# Para actualizar el objeto de codificación incluyendo los fluentes
 def inicializar(self, Nf, Nc, No, Nt, Nfo):
     self.Nf = Nf # Número de filas
     self.Nc = Nc # Número de columnas
